@@ -30,7 +30,7 @@ our @EXPORT_OK = qw(
   get_root_tag
   ximple_to_string
 );
-our $VERSION = '1.00';
+our $VERSION = '1.02';
 
 =head1 NAME
 
@@ -59,7 +59,7 @@ on CPAN.
   <ximple_tree>     ::=  [ <ximple_tag> ... ]
                      
   <ximple_tag>      ::=  { tag_name => <tag-name>,
-                           attribs  => <attribs>
+                           attrib  => <attribs>
                            content => <ximple_tree>
                            tag_type => <tag-type> }
 
@@ -67,7 +67,7 @@ on CPAN.
 
   <attribs>         ::= { <xml-identifier> => String, ... }
                      
-  <tag-type>        ::= PL | XML_Decl | DOCTYPE | undef
+  <tag-type>        ::= PI | XMLDecl | DOCTYPE | Comment | undef
 
 =head1 FUNCTIONS
 
@@ -218,8 +218,11 @@ sub SetProcessingInstructionHandler {
 }
 
 sub SetCommentHandler {
-  #leaving blank removes all comments
-  #possibility of later implementation, though not imperative
+  my ($expat,$data) = @_;
+  push (@{$tree[-1]->{content}},{
+      tag_type => "Comment",
+      data => $data
+  });
 }
 
 sub SetStartCdataHandler {
@@ -319,6 +322,8 @@ sub ximple_to_string {
         $xml .= xmldecl_to_string($next,$depth);
       } elsif ($next->{tag_type} eq 'PI') {
         $xml .= pi_to_string($next,$depth);
+      } elsif ($next->{tag_type} eq 'Comment') {
+        $xml .= comment_to_string($next,$depth);
       } else {
         die "unsupported tag_type: $next->{tag_type}";
       }
@@ -336,7 +341,7 @@ sub open_tag_to_string {
   return
     "<".$tag->{tag_name}.
     attrib_to_string ($tag->{attrib}).
-    ">\n";
+    ">";
 }
 
 ## close_tag_to_string: Tag Number -> String
@@ -393,6 +398,12 @@ sub xmldecl_to_string {
   return $xml."?>\n";
 }
 
+## comment_to_string: Tag Numer -> String
+sub comment_to_string {
+  my ($tag,$depth) = @_;
+  return "<!-- ".xmlize($tag->{data})." -->";
+}
+
 ## attrib_to_string: Tag -> String
 sub attrib_to_string {
   my $attrib = shift;
@@ -405,7 +416,7 @@ sub attrib_to_string {
 
 sub xmlize {
   my $text = shift;
-  return "" unless $text; #dskippy 2002/02/28 why are functions passing undef to this?
+  return "" unless defined $text; #dskippy 2002/02/28 why are functions passing undef to this?
   $text =~ s/&/&amp;/g;
   $text =~ s/</&lt;/g;
   $text =~ s/>/&gt;/g;
@@ -430,5 +441,6 @@ sub get_root_tag {
     next unless ref;
     return $_ unless ($_->{tag_type});
   }
+  return;
 }
 1;
